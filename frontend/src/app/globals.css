@@ -1,0 +1,173 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    height: 100%;
+    background: #e0e5ec;
+    color: #3d4852;
+    font-family: "DM Sans", system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  ::selection {
+    background: #6c63ff;
+    color: #fff;
+  }
+
+  :focus-visible {
+    outline: 2px solid #6c63ff;
+    outline-offset: 2px;
+    border-radius: 12px;
+  }
+
+  input:focus-visible,
+  textarea:focus-visible,
+  select:focus-visible {
+    outline: none;
+    box-shadow:
+      inset 10px 10px 20px rgb(163, 177, 198, 0.7),
+      inset -10px -10px 20px rgba(255, 255, 255, 0.6),
+      0 0 0 2px #6c63ff;
+  }
+
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: rgb(163, 177, 198, 0.35);
+    border-radius: 999px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: rgb(163, 177, 198, 0.55);
+  }
+}
+
+@layer utilities {
+  /* ── Neumorphic shadows ────────────────────────────────────────────── */
+  .neu-extruded {
+    box-shadow:
+      9px 9px 16px rgb(163, 177, 198, 0.6),
+      -9px -9px 16px rgba(255, 255, 255, 0.5);
+  }
+  .neu-extruded-sm {
+    box-shadow:
+      5px 5px 10px rgb(163, 177, 198, 0.5),
+      -5px -5px 10px rgba(255, 255, 255, 0.45);
+  }
+  .neu-extruded-hover {
+    box-shadow:
+      12px 12px 20px rgb(163, 177, 198, 0.7),
+      -12px -12px 20px rgba(255, 255, 255, 0.6);
+  }
+  .neu-inset {
+    box-shadow:
+      inset 6px 6px 10px rgb(163, 177, 198, 0.6),
+      inset -6px -6px 10px rgba(255, 255, 255, 0.5);
+  }
+  .neu-inset-deep {
+    box-shadow:
+      inset 10px 10px 20px rgb(163, 177, 198, 0.7),
+      inset -10px -10px 20px rgba(255, 255, 255, 0.6);
+  }
+  .neu-inset-sm {
+    box-shadow:
+      inset 3px 3px 6px rgb(163, 177, 198, 0.6),
+      inset -3px -3px 6px rgba(255, 255, 255, 0.5);
+  }
+}
+
+/* ── Keyframe animations ─────────────────────────────────────────────────── */
+
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50%       { transform: translateY(-6px); }
+}
+
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0; }
+}
+
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slideDown {
+  from { opacity: 0; transform: translateY(-10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes scaleIn {
+  from { opacity: 0; transform: scale(0.96); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes pullProgress {
+  from { width: 0%; }
+  to   { width: var(--progress, 0%); }
+}
+
+/* ── Animation utility classes ──────────────────────────────────────────── */
+
+.animate-float     { animation: float 3s ease-in-out infinite; }
+.animate-blink     { animation: blink 1s ease-in-out infinite; }
+.animate-slide-up  { animation: slideUp 0.2s ease-out both; }
+.animate-slide-down { animation: slideDown 0.2s ease-out both; }
+.animate-fade-in   { animation: fadeIn 0.15s ease-out both; }
+.animate-scale-in  { animation: scaleIn 0.15s ease-out both; }
+.animate-spin      { animation: spin 1s linear infinite; }
+
+/* ── Chat message entrance ──────────────────────────────────────────────── */
+
+.msg-enter {
+  animation: slideUp 0.18s ease-out both;
+}
+
+/* ── Streaming cursor ────────────────────────────────────────────────────── */
+
+.streaming-cursor::after {
+  content: '';
+  display: inline-block;
+  width: 2px;
+  height: 0.9em;
+  background: currentColor;
+  margin-left: 2px;
+  vertical-align: text-bottom;
+  animation: blink 1s ease-in-out infinite;
+}
+
+/* ── Toast slide ─────────────────────────────────────────────────────────── */
+
+.toast-enter {
+  animation: slideDown 0.2s ease-out both;
+}
