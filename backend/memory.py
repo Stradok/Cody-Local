@@ -29,6 +29,16 @@ async def init_db() -> None:
             )
         """)
         await db.execute("CREATE INDEX IF NOT EXISTS idx_messages_session ON messages(session_id)")
+        await db.execute("""
+            CREATE TABLE IF NOT EXISTS books (
+                book_id     TEXT PRIMARY KEY,
+                title       TEXT NOT NULL,
+                category    TEXT NOT NULL DEFAULT 'general',
+                source_path TEXT NOT NULL DEFAULT '',
+                chunk_count INTEGER NOT NULL DEFAULT 0,
+                added_at    TEXT NOT NULL DEFAULT (datetime('now'))
+            )
+        """)
         await db.commit()
 
 
@@ -139,4 +149,58 @@ async def list_recent_workspaces(limit: int = 20) -> list[dict]:
 async def remove_recent_workspace(path: str) -> None:
     async with aiosqlite.connect(DB_PATH) as db:
         await db.execute("DELETE FROM recent_workspaces WHERE path = ?", (path,))
+        await db.commit()
+
+
+# ── Library Books ─────────────────────────────────────────────────────────────
+
+
+async def add_book(
+    book_id: str,
+    title: str,
+    category: str,
+    source_path: str,
+    chunk_count: int,
+) -> None:
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute(
+            """
+            INSERT INTO books(book_id, title, category, source_path, chunk_count)
+            VALUES (?, ?, ?, ?, ?)
+            ON CONFLICT(book_id) DO UPDATE SET
+                title = excluded.title,
+                category = excluded.category,
+                source_path = excluded.source_path,
+                chunk_count = excluded.chunk_count
+            """,
+            (book_id, title, category, source_path, chunk_count),
+        )
+        await db.commit()
+
+
+async def list_books() -> list[dict]:
+    async with aiosqlite.connect(DB_PATH) as db:
+        try:
+            async with db.execute(
+                "SELECT book_id, title, category, source_path, chunk_count, added_at FROM books ORDER BY added_at DESC"
+            ) as cursor:
+                rows = await cursor.fetchall()
+        except Exception:
+            return []
+    return [
+        {
+            "book_id": row[0],
+            "title": row[1],
+            "category": row[2],
+            "source_path": row[3],
+            "chunk_count": row[4],
+            "added_at": row[5],
+        }
+        for row in rows
+    ]
+
+
+async def delete_book(book_id: str) -> None:
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute("DELETE FROM books WHERE book_id = ?", (book_id,))
         await db.commit()

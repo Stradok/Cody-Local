@@ -3,11 +3,30 @@ export interface OllamaModel {
   size: number
 }
 
+export interface LibraryBook {
+  book_id: string
+  title: string
+  category: string
+  source_path: string
+  chunk_count: number
+  added_at: string
+}
+
+export interface LibrarySource {
+  text: string
+  title: string
+  category: string
+  book_id: string
+  chunk_idx: number
+  score: number
+}
+
 export interface Message {
   role: "user" | "assistant" | "tool"
   content: string
   toolCalls?: ToolCall[]
   toolResult?: string
+  sources?: LibrarySource[]
 }
 
 export interface ToolCall {

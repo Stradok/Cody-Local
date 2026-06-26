@@ -9,13 +9,14 @@ import FileBrowser from "@/components/FileBrowser"
 import CodeEditor from "@/components/CodeEditor"
 import ChatPanel from "@/components/ChatPanel"
 import GitHubPanel from "@/components/GitHubPanel"
+import LibraryPanel from "@/components/LibraryPanel"
 import ToastStack, { ToastItem } from "@/components/Toast"
 
 export default function Home() {
   const [model, setModel] = useState("")
   const [workspace, setWorkspace] = useState("")
   const [openFile, setOpenFile] = useState<OpenFile | null>(null)
-  const [leftPanel, setLeftPanel] = useState<"files" | "github">("files")
+  const [leftPanel, setLeftPanel] = useState<"files" | "github" | "library">("files")
   const [showLeft, setShowLeft] = useState(true)
   const [showChat, setShowChat] = useState(true)
   const [mobileView, setMobileView] = useState<"files" | "code" | "chat">("code")
@@ -57,6 +58,18 @@ export default function Home() {
       if (isMobile) setMobileView("code")
     }
   }, [isMobile])
+
+  function cycleLeftPanel(p: "files" | "github" | "library"): "files" | "github" | "library" {
+    if (p === "files") return "github"
+    if (p === "github") return "library"
+    return "files"
+  }
+
+  function leftPanelLabel(p: "files" | "github" | "library") {
+    if (p === "files") return "Files"
+    if (p === "github") return "GitHub"
+    return "Library"
+  }
 
   const onFileWritten = useCallback(async (path: string, _ws: string) => {
     // Refresh file browser
@@ -105,17 +118,19 @@ export default function Home() {
           {mobileView === "files" && (
             <div className="neu-inset-deep rounded-[32px] p-3 h-full overflow-auto">
               <div className="flex gap-2 mb-3">
-                {(["files", "github"] as const).map((p) => (
+                {(["files", "github", "library"] as const).map((p) => (
                   <button key={p} onClick={() => setLeftPanel(p)}
                     className={`flex-1 py-2 rounded-[16px] text-xs font-medium transition-all duration-300 ${
                       leftPanel === p ? "neu-inset-sm text-accent" : "neu-extruded-sm text-muted hover:text-fg"
                     }`}
-                  >{p === "files" ? "Files" : "GitHub"}</button>
+                  >{leftPanelLabel(p)}</button>
                 ))}
               </div>
               {leftPanel === "files"
                 ? <FileBrowser onFileSelect={handleFileSelect} workspace={workspace} onChangeWorkspace={handleChangeWorkspace} refreshKey={fileBrowserKey} />
-                : <GitHubPanel workspace={workspace} onFileSelect={handleFileSelect} />}
+                : leftPanel === "github"
+                ? <GitHubPanel workspace={workspace} onFileSelect={handleFileSelect} />
+                : <LibraryPanel />}
             </div>
           )}
           {mobileView === "code" && (
@@ -164,13 +179,13 @@ export default function Home() {
                   showLeft ? "neu-inset-sm text-accent" : "neu-extruded-sm text-muted hover:text-fg"
                 }`}
               >
-                {leftPanel === "files" ? "Files" : "GitHub"} {showLeft ? "▾" : "▸"}
+                {leftPanelLabel(leftPanel)} {showLeft ? "▾" : "▸"}
               </button>
               {showLeft && (
-                <button onClick={() => setLeftPanel(leftPanel === "files" ? "github" : "files")}
+                <button onClick={() => setLeftPanel(cycleLeftPanel(leftPanel))}
                   className="px-3 py-1.5 rounded-[14px] text-[11px] font-medium neu-extruded-sm text-muted hover:text-fg transition-all duration-200"
                 >
-                  {leftPanel === "files" ? "GitHub" : "Files"}
+                  {leftPanelLabel(cycleLeftPanel(leftPanel))}
                 </button>
               )}
               <button
@@ -197,11 +212,13 @@ export default function Home() {
         {showLeft && (
           <div className="neu-inset-deep rounded-[32px] p-3 w-60 shrink-0 overflow-hidden flex flex-col">
             <div className="px-2 pb-2 text-[9px] font-display font-bold text-muted/60 uppercase tracking-widest border-b border-muted/10 mb-2">
-              {leftPanel === "files" ? "Explorer" : "GitHub"}
+              {leftPanel === "files" ? "Explorer" : leftPanel === "github" ? "GitHub" : "Library"}
             </div>
             {leftPanel === "files"
               ? <FileBrowser onFileSelect={handleFileSelect} workspace={workspace} onChangeWorkspace={handleChangeWorkspace} refreshKey={fileBrowserKey} />
-              : <GitHubPanel workspace={workspace} onFileSelect={handleFileSelect} />
+              : leftPanel === "github"
+              ? <GitHubPanel workspace={workspace} onFileSelect={handleFileSelect} />
+              : <LibraryPanel />
             }
           </div>
         )}

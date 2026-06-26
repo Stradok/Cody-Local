@@ -1,4 +1,4 @@
-import { FileEntry } from "@/types"
+import { FileEntry, LibraryBook, LibrarySource } from "@/types"
 
 export const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000"
 
@@ -37,6 +37,7 @@ export async function chat(
   onDone: () => void,
   onError?: (message: string) => void,
   mode = "chat",
+  onSources?: (sources: LibrarySource[]) => void,
 ): Promise<void> {
   let res: Response
   try {
@@ -75,6 +76,7 @@ export async function chat(
           case "chunk":      onChunk(evt.content || ""); break
           case "tool_call":  onToolCall(evt.name, evt.arguments); break
           case "tool_result": onToolResult(evt.name, evt.result); break
+          case "sources":    onSources?.(evt.results as unknown as LibrarySource[]); break
           case "error":      onError?.(evt.content || evt.message || "Unknown error"); break
           case "done":       onDone(); return
         }
@@ -453,5 +455,76 @@ export async function getSessionMessages(sessionId: string): Promise<{ messages:
     return res.json()
   } catch (e: unknown) {
     return { messages: [], error: String(e) }
+  }
+}
+
+// ── Library ───────────────────────────────────────────────────────────────────
+
+export async function libraryListBooks(): Promise<{ books: LibraryBook[]; error?: string }> {
+  try {
+    const res = await fetch(`${API_BASE}/api/library/books`)
+    if (!res.ok) return { books: [], error: (await res.text()).slice(0, 200) }
+    return res.json()
+  } catch (e: unknown) {
+    return { books: [], error: String(e) }
+  }
+}
+
+export async function libraryIngestBook(
+  path: string,
+  title: string,
+  category: string,
+  embedModel = "nomic-embed-text",
+): Promise<{ book_id?: string; title?: string; chunk_count?: number; error?: string }> {
+  try {
+    const res = await fetch(`${API_BASE}/api/library/ingest`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ path, title, category, embed_model: embedModel }),
+    })
+    if (!res.ok) {
+      const text = await res.text()
+      let detail = `Server error ${res.status}`
+      try { detail = (JSON.parse(text) as { detail?: string }).detail || detail } catch { detail = text.slice(0, 200) || detail }
+      return { error: detail }
+    }
+    return res.json()
+  } catch (e: unknown) {
+    return { error: String(e) }
+  }
+}
+
+export async function libraryDeleteBook(bookId: string): Promise<{ error?: string }> {
+  try {
+    const res = await fetch(`${API_BASE}/api/library/books/${encodeURIComponent(bookId)}`, {
+      method: "DELETE",
+    })
+    if (!res.ok) return { error: (await res.text()).slice(0, 200) }
+    return {}
+  } catch (e: unknown) {
+    return { error: String(e) }
+  }
+}
+
+export async function librarySearch(
+  query: string,
+  nResults = 5,
+  category = "",
+): Promise<{ results: LibrarySource[]; error?: string }> {
+  try {
+    const res = await fetch(`${API_BASE}/api/library/search`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ query, n_results: nResults, category }),
+    })
+    if (!res.ok) {
+      const text = await res.text()
+      let detail = `Server error ${res.status}`
+      try { detail = (JSON.parse(text) as { detail?: string }).detail || detail } catch { detail = text.slice(0, 200) || detail }
+      return { results: [], error: detail }
+    }
+    return res.json()
+  } catch (e: unknown) {
+    return { results: [], error: String(e) }
   }
 }

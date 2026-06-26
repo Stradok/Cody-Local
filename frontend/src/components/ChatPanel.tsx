@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useRef, useEffect, useCallback } from "react"
-import { Message, ToolCall } from "@/types"
+import { Message, ToolCall, LibrarySource } from "@/types"
 import { chat, runAgent, searchFiles, readFileContent, pullModel } from "@/lib/api"
 import ToolCallCard from "./ToolCallCard"
 
@@ -18,7 +18,7 @@ interface Mention {
   relative: string
 }
 
-type Mode = "plan" | "build"
+type Mode = "plan" | "build" | "learn"
 
 const MODE_CONFIG = {
   plan: {
@@ -32,6 +32,12 @@ const MODE_CONFIG = {
     placeholder: "Describe what to build — I'll plan and execute it…",
     welcome: "Build mode — I'll plan and autonomously execute tasks.",
     welcomeSub: "Files are written to your workspace.",
+  },
+  learn: {
+    label: "Learn",
+    placeholder: "Ask anything — survival, medicine, farming, history, science…",
+    welcome: "Learn mode — ask anything and I'll search your library for relevant context.",
+    welcomeSub: "Add books via the Library panel for best results.",
   },
 } as const
 
@@ -131,10 +137,10 @@ export default function ChatPanel({ model, workspace, onFileWritten, onToast }: 
     if (!input.trim() || streaming) return
     setModelError(null)
     if (mode === "build") await handleBuildSend()
-    else await handlePlanSend()
+    else await handleChatSend()
   }
 
-  async function handlePlanSend() {
+  async function handleChatSend() {
     const finalContent = await buildContent(input)
     const userMsg: Message = { role: "user", content: input.trim() }
     setMessages((p) => [...p, userMsg])
@@ -154,7 +160,7 @@ export default function ChatPanel({ model, workspace, onFileWritten, onToast }: 
         a[a.length - 1] = { ...a[a.length - 1], content: a[a.length - 1].content + chunk }
         return a
       }),
-      () => {},  // no tool calls in plan mode
+      () => {},
       () => {},
       () => setStreaming(false),
       (errMsg) => {
@@ -163,7 +169,12 @@ export default function ChatPanel({ model, workspace, onFileWritten, onToast }: 
         setStreaming(false)
         onToast?.(`${errMsg.split("\n")[0]}`, "error")
       },
-      "plan",
+      mode,
+      (sources) => setMessages((p) => {
+        const a = [...p]
+        a[a.length - 1] = { ...a[a.length - 1], sources }
+        return a
+      }),
     )
   }
 
@@ -278,7 +289,7 @@ export default function ChatPanel({ model, workspace, onFileWritten, onToast }: 
       {workspace && (
         <div className="shrink-0 flex items-center justify-between pb-2 border-b border-muted/10 mb-2">
           <div className="flex items-center gap-1">
-            {(["plan", "build"] as Mode[]).map((m) => (
+            {(["plan", "build", "learn"] as Mode[]).map((m) => (
               <button key={m} onClick={() => !streaming && setMode(m)} disabled={streaming}
                 className={`px-3 py-1 rounded-[12px] text-[10px] font-medium transition-all duration-200 ${
                   mode === m ? "neu-inset-sm text-accent" : "text-muted hover:text-fg disabled:opacity-40"
@@ -385,6 +396,20 @@ export default function ChatPanel({ model, workspace, onFileWritten, onToast }: 
                   </div>
                 </div>
                 {msg.toolCalls?.map((tc, j) => <ToolCallCard key={j} toolCall={tc} />)}
+                {msg.sources && msg.sources.length > 0 && (
+                  <div className="mt-2 space-y-1.5">
+                    <p className="text-[9px] font-display font-bold text-muted/60 uppercase tracking-widest px-0.5">Sources</p>
+                    {msg.sources.map((s: LibrarySource, j: number) => (
+                      <div key={j} className="rounded-[10px] neu-inset-sm p-2 space-y-0.5">
+                        <div className="flex items-center justify-between">
+                          <p className="text-[9px] font-medium text-accent truncate">{s.title}</p>
+                          <span className="text-[9px] text-muted shrink-0 ml-1">{Math.round(s.score * 100)}%</span>
+                        </div>
+                        <p className="text-[10px] text-fg/60 leading-relaxed line-clamp-2">{s.text}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             )
           })}

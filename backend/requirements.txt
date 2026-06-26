@@ -6,3 +6,7 @@ python-dotenv
 langgraph
 langchain-ollama
 aiosqlite
+chromadb
+pypdf
+ebooklib
+html2text

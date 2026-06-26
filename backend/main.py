@@ -45,13 +45,26 @@ When producing an implementation plan, format each step as:
 
 Think step by step. Be thorough."""
 
+LEARN_SYSTEM_PROMPT = """You are a knowledgeable teacher and field guide with access to a curated offline library.
+
+Your role:
+- Answer questions thoroughly using the provided library context when available
+- Always cite which source/book you are drawing from when using specific information
+- If the context does not fully cover the question, supplement with general knowledge and say so clearly
+- Break complex topics down step by step
+- Use practical language — this app may be used in remote areas where clear guidance matters
+- Be accurate above all else
+
+This is a general knowledge mode. Do NOT write code unless explicitly asked."""
+
 
 class ChatRequest(BaseModel):
     model: str
     messages: list[dict]
     workspace: str = "."
     session_id: str = ""
-    mode: str = "chat"  # "plan" or "chat"
+    mode: str = "chat"  # "plan", "chat", or "learn"
+    embed_model: str = "nomic-embed-text"
 
 
 class AgentRequest(BaseModel):
@@ -112,6 +125,20 @@ class FileSearchRequest(BaseModel):
     workspace: str
     query: str
     max_results: int = 10
+
+
+class LibraryIngestRequest(BaseModel):
+    path: str
+    title: str = ""
+    category: str = "general"
+    embed_model: str = "nomic-embed-text"
+
+
+class LibrarySearchRequest(BaseModel):
+    query: str
+    n_results: int = 5
+    category: str = ""
+    embed_model: str = "nomic-embed-text"
 
 
 class SessionMessagesRequest(BaseModel):
@@ -204,9 +231,40 @@ async def chat(req: ChatRequest):
 
         assistant_content = ""
 
-        # Build message list: inject system prompt for planning mode, disable tools
+        # Build message list based on mode
         if req.mode == "plan":
             send_messages = [{"role": "system", "content": PLANNING_SYSTEM_PROMPT}] + list(req.messages)
+            send_tools = None
+        elif req.mode == "learn":
+            last_user = next(
+                (m["content"] for m in reversed(req.messages) if m["role"] == "user"), ""
+            )
+            library_results: list[dict] = []
+            if last_user:
+                try:
+                    from library.store import embed_texts, search_library
+                    embeds = await embed_texts([last_user], model=req.embed_model)
+                    library_results = search_library(embeds[0], n_results=5)
+                except Exception as e:
+                    logger.warning("[chat/learn] library search failed: %s", e)
+            if library_results:
+                yield f"data: {json.dumps({'type': 'sources', 'results': library_results})}\n\n"
+                context_block = "\n\n---\n\n".join(
+                    f'Source: "{r["title"]}" ({r["category"]})\n{r["text"]}'
+                    for r in library_results
+                )
+                system_content = (
+                    LEARN_SYSTEM_PROMPT
+                    + "\n\nCONTEXT FROM YOUR LIBRARY:\n\n"
+                    + context_block
+                    + "\n\nUse the above context to answer the question and cite your sources."
+                )
+            else:
+                system_content = (
+                    LEARN_SYSTEM_PROMPT
+                    + "\n\nNote: No relevant library content was found. Answering from general knowledge."
+                )
+            send_messages = [{"role": "system", "content": system_content}] + list(req.messages)
             send_tools = None
         else:
             send_messages = req.messages
@@ -560,3 +618,100 @@ async def github_commit(req: GitHubCommitRequest):
         return {"result": result}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+
+# ── Library ───────────────────────────────────────────────────────────────────
+
+@app.get("/api/library/status")
+async def library_status():
+    try:
+        from library.store import collection_count, CHROMA_PATH
+        count = collection_count()
+        books = await memory.list_books()
+        return {
+            "available": True,
+            "chunk_count": count,
+            "book_count": len(books),
+            "chroma_path": CHROMA_PATH,
+        }
+    except ImportError as e:
+        return {"available": False, "error": f"chromadb not installed: {e}"}
+    except Exception as e:
+        return {"available": False, "error": str(e)}
+
+
+@app.get("/api/library/books")
+async def library_list_books():
+    books = await memory.list_books()
+    return {"books": books}
+
+
+@app.post("/api/library/ingest")
+async def library_ingest(req: LibraryIngestRequest):
+    from library.ingest import ingest_file
+
+    path = os.path.expanduser(req.path.strip())
+    if not os.path.isfile(path):
+        raise HTTPException(status_code=400, detail=f"File not found: {path}")
+
+    title = req.title.strip() or os.path.splitext(os.path.basename(path))[0]
+
+    logger.info("[library] ingesting %s as %r category=%s model=%s", path, title, req.category, req.embed_model)
+
+    try:
+        book_id, chunk_count = await ingest_file(
+            path=path,
+            title=title,
+            category=req.category,
+            embed_model=req.embed_model,
+        )
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    except Exception as e:
+        logger.error("[library] ingest error: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Ingestion failed: {e}")
+
+    await memory.add_book(
+        book_id=book_id,
+        title=title,
+        category=req.category,
+        source_path=path,
+        chunk_count=chunk_count,
+    )
+
+    logger.info("[library] indexed %r — %d chunks (book_id=%s)", title, chunk_count, book_id[:8])
+    return {"book_id": book_id, "title": title, "chunk_count": chunk_count}
+
+
+@app.delete("/api/library/books/{book_id}")
+async def library_delete_book(book_id: str):
+    from library.store import delete_book_chunks
+    try:
+        delete_book_chunks(book_id)
+    except Exception as e:
+        logger.warning("[library] delete chunks error: %s", e)
+    await memory.delete_book(book_id)
+    return {"status": "deleted", "book_id": book_id}
+
+
+@app.post("/api/library/search")
+async def library_search(req: LibrarySearchRequest):
+    from library.store import embed_texts, search_library
+
+    if not req.query.strip():
+        raise HTTPException(status_code=400, detail="Query is required")
+
+    try:
+        embeds = await embed_texts([req.query], model=req.embed_model)
+        results = search_library(
+            embeds[0],
+            n_results=req.n_results,
+            category=req.category or None,
+        )
+    except Exception as e:
+        logger.error("[library] search error: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Search failed: {e}")
+
+    return {"results": results, "query": req.query}
