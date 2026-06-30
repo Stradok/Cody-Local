@@ -3,6 +3,23 @@ export interface OllamaModel {
   size: number
 }
 
+export interface Episode {
+  id: number
+  session_id: string
+  workspace: string
+  model: string
+  summary: string
+  created_at: string
+}
+
+export interface SemanticMemory {
+  id: number
+  key: string
+  value: string
+  source: string
+  updated_at: string
+}
+
 export interface LibraryBook {
   book_id: string
   title: string

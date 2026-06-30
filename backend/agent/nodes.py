@@ -98,10 +98,12 @@ WORKSPACE: {workspace}
 
 MANDATORY RULES:
 1. Use execute_command for ALL shell operations.
-2. Read the command output — if there are errors, fix them and retry.
-3. After installing packages, verify: pip show <pkg> or npm list <pkg>.
-4. Commands run from the workspace root directory.
-5. If a command fails, try to diagnose and fix the issue.
+2. The working directory is ALREADY set to the workspace root — NEVER use cd.
+3. Use relative paths from the workspace root (e.g. "src/main.py", not "/full/path/src/main.py").
+4. Compound commands work: you can use &&, |, ; and shell redirects (>, >>) freely.
+5. Read the command output — if there are errors, fix them and retry.
+6. After installing packages, verify with: pip show <pkg> or npm list <pkg>.
+7. NEVER write file content using echo or cat heredocs — file writing is done by the coding agent.
 
 Execute now. Use tools."""
 
@@ -127,18 +129,59 @@ Validate now. Use tools."""
 
 # ── Step classifier ───────────────────────────────────────────────────────────
 
-def classify_step(step: str) -> str:
-    """Classify a plan step into an agent type using keyword matching."""
-    s = step.lower()
+import re as _re
 
-    terminal_kw = [
-        "run ", "run:", "install ", "install:", "execute ", "npm ", "pip ",
-        "python ", "node ", "git ", "make ", "docker", "pytest", "test ",
-        "compile", "build ", "start ", "serve ", "bundle",
+# File extensions that signal a coding step
+_FILE_EXT_RE = _re.compile(
+    r'\b\w[\w.\-]*/?\w*\.(py|js|ts|tsx|jsx|html|css|scss|json|yaml|yml|toml|rs|go|java|kt|swift|cpp|c|h|sh|rb|php|cs|vue|svelte|md)\b'
+)
+
+# Keywords that, when combined with a file extension, clearly mean "write code"
+_CODING_VERBS = (
+    "write ", "implement ", "create ", "add ", "update ", "modify ",
+    "refactor ", "replace ", "rewrite ", "build the ", "define ",
+)
+
+
+def classify_step(step: str) -> str:
+    """Classify a plan step into an agent type."""
+    s = step.lower()
+    # Strip leading step number so "1. run ..." works the same as "run ..."
+    body = _re.sub(r"^\d+\.\s*", "", s).strip()
+
+    # ── Coding priority ───────────────────────────────────────────────────────
+    # If a step mentions a source file AND a coding verb, always go to coding.
+    # This prevents "write Python ..." from hitting the terminal classifier.
+    has_file = bool(_FILE_EXT_RE.search(s))
+    if has_file and any(v in body for v in _CODING_VERBS):
+        return "coding"
+
+    # ── Terminal ──────────────────────────────────────────────────────────────
+    # Match only when the step is clearly running a shell command.
+    terminal_always = [
+        "install ", "install:", "npm ", "pip ", "pytest",
+        "docker", "git ", "make ", "bundle", "webpack",
     ]
-    if any(kw in s for kw in terminal_kw):
+    # Command verbs at the start of the body (after stripping step number)
+    _terminal_start = _re.compile(
+        r"^(run|execute|start|serve|launch|deploy|restart|compile|transpile)\b"
+    )
+    # Explicit CLI tool followed by a space (e.g. "python3 hello.py", "node index.js")
+    _terminal_tool = _re.compile(
+        r"^(python3?|node|npx|cargo|go run|java|mvn|gradle|php|ruby)\s"
+    )
+    # "run:" prefix anywhere (planner uses this convention)
+    _run_prefix = _re.compile(r"\brun:\s")
+
+    if (
+        any(kw in s for kw in terminal_always)
+        or _terminal_start.match(body)
+        or _terminal_tool.match(body)
+        or _run_prefix.search(s)
+    ):
         return "terminal"
 
+    # ── Filesystem ────────────────────────────────────────────────────────────
     filesystem_kw = [
         "create directory", "mkdir", "move file", "move the file",
         "rename file", "rename the file", "delete file", "delete the file",
@@ -146,18 +189,16 @@ def classify_step(step: str) -> str:
         "delete directory", "remove directory",
         "move backend/", "move frontend/", "move src/", "move app/",
     ]
-    # Catch generic "move X to Y" or "rename X to Y" patterns with file paths
-    import re as _re
     if (
         any(kw in s for kw in filesystem_kw)
         or _re.search(r"\bmove\b.+\bto\b.+[./]", s)
         or _re.search(r"\brename\b.+\bto\b", s)
-        # "delete/remove <filename.ext>" — but not "remove X from file.py" (that's coding)
         or (_re.search(r"\bdelete\b\s+(the\s+)?(\w[\w.\-/]*\.\w+)", s) and " from " not in s)
         or (_re.search(r"\bremove\b\s+(the\s+)?(\w[\w.\-/]*\.\w+)", s) and " from " not in s and " in " not in s)
     ):
         return "filesystem"
 
+    # ── Validation ────────────────────────────────────────────────────────────
     validation_kw = [
         "verify", "validate", "check that", "confirm that", "ensure that",
         "test that", "assert ", "review ", "audit ",

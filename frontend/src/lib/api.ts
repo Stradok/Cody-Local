@@ -1,4 +1,4 @@
-import { FileEntry, LibraryBook, LibrarySource } from "@/types"
+import { FileEntry, LibraryBook, LibrarySource, Episode, SemanticMemory } from "@/types"
 
 export const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000"
 
@@ -34,7 +34,7 @@ export async function chat(
   onChunk: (chunk: string) => void,
   onToolCall: (name: string, args: string) => void,
   onToolResult: (name: string, result: string) => void,
-  onDone: () => void,
+  onDone: (sessionId?: string) => void,
   onError?: (message: string) => void,
   mode = "chat",
   onSources?: (sources: LibrarySource[]) => void,
@@ -78,13 +78,13 @@ export async function chat(
           case "tool_result": onToolResult(evt.name, evt.result); break
           case "sources":    onSources?.(evt.results as unknown as LibrarySource[]); break
           case "error":      onError?.(evt.content || evt.message || "Unknown error"); break
-          case "done":       onDone(); return
+          case "done":       onDone(evt.session_id as string | undefined); return
         }
       }
     }
   } finally {
     reader.cancel()
-    onDone()
+    onDone(undefined)
   }
 }
 
@@ -527,4 +527,74 @@ export async function librarySearch(
   } catch (e: unknown) {
     return { results: [], error: String(e) }
   }
+}
+
+// ── Memory ────────────────────────────────────────────────────────────────────
+
+export async function memoryProcess(
+  sessionId: string,
+  model: string,
+): Promise<{ summary?: string; facts_saved?: string[]; log_path?: string; error?: string }> {
+  try {
+    const res = await fetch(`${API_BASE}/api/memory/process`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ session_id: sessionId, model }),
+    })
+    if (!res.ok) return { error: (await res.text()).slice(0, 200) }
+    return res.json()
+  } catch (e: unknown) { return { error: String(e) } }
+}
+
+export async function memoryListEpisodes(): Promise<{ episodes: Episode[]; error?: string }> {
+  try {
+    const res = await fetch(`${API_BASE}/api/memory/episodes`)
+    if (!res.ok) return { episodes: [], error: (await res.text()).slice(0, 200) }
+    return res.json()
+  } catch (e: unknown) { return { episodes: [], error: String(e) } }
+}
+
+export async function memoryDeleteEpisode(id: number): Promise<{ error?: string }> {
+  try {
+    await fetch(`${API_BASE}/api/memory/episodes/${id}`, { method: "DELETE" })
+    return {}
+  } catch (e: unknown) { return { error: String(e) } }
+}
+
+export async function memoryListSemantic(): Promise<{ facts: SemanticMemory[]; error?: string }> {
+  try {
+    const res = await fetch(`${API_BASE}/api/memory/semantic`)
+    if (!res.ok) return { facts: [], error: (await res.text()).slice(0, 200) }
+    return res.json()
+  } catch (e: unknown) { return { facts: [], error: String(e) } }
+}
+
+export async function memoryAddSemantic(
+  key: string,
+  value: string,
+): Promise<{ error?: string }> {
+  try {
+    const res = await fetch(`${API_BASE}/api/memory/semantic`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ key, value }),
+    })
+    if (!res.ok) return { error: (await res.text()).slice(0, 200) }
+    return {}
+  } catch (e: unknown) { return { error: String(e) } }
+}
+
+export async function memoryDeleteSemantic(id: number): Promise<{ error?: string }> {
+  try {
+    await fetch(`${API_BASE}/api/memory/semantic/${id}`, { method: "DELETE" })
+    return {}
+  } catch (e: unknown) { return { error: String(e) } }
+}
+
+export async function memoryListSessionLogs(): Promise<{ logs_dir?: string; logs?: { filename: string; path: string }[]; error?: string }> {
+  try {
+    const res = await fetch(`${API_BASE}/api/memory/session-logs`)
+    if (!res.ok) return { logs: [], error: (await res.text()).slice(0, 200) }
+    return res.json()
+  } catch (e: unknown) { return { logs: [], error: String(e) } }
 }

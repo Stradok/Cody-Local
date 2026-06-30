@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback } from "react"
 import { Message, ToolCall, LibrarySource } from "@/types"
-import { chat, runAgent, searchFiles, readFileContent, pullModel } from "@/lib/api"
+import { chat, runAgent, searchFiles, readFileContent, pullModel, memoryProcess } from "@/lib/api"
 import ToolCallCard from "./ToolCallCard"
 
 interface Props {
@@ -70,6 +70,9 @@ export default function ChatPanel({ model, workspace, onFileWritten, onToast }: 
   const endRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const sessionRef = useRef("")
+  const msgCountRef = useRef(1)
+
+  useEffect(() => { msgCountRef.current = messages.length }, [messages])
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth" })
@@ -162,7 +165,13 @@ export default function ChatPanel({ model, workspace, onFileWritten, onToast }: 
       }),
       () => {},
       () => {},
-      () => setStreaming(false),
+      (sid) => {
+        if (sid) sessionRef.current = sid
+        setStreaming(false)
+        if (msgCountRef.current + 2 >= 6 && sessionRef.current) {
+          memoryProcess(sessionRef.current, model).catch(() => {})
+        }
+      },
       (errMsg) => {
         setModelError(errMsg)
         setMessages((p) => p.slice(0, -1))
@@ -239,7 +248,13 @@ export default function ChatPanel({ model, workspace, onFileWritten, onToast }: 
         setAgentStatus("")
         onToast?.(`Agent error: ${msg.split("\n")[0]}`, "error")
       },
-      onDone: () => { setStreaming(false); setAgentStatus("") },
+      onDone: () => {
+        setStreaming(false)
+        setAgentStatus("")
+        if (msgCountRef.current + 2 >= 6 && sessionRef.current) {
+          memoryProcess(sessionRef.current, model).catch(() => {})
+        }
+      },
     })
   }
 

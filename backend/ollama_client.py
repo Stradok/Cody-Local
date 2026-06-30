@@ -74,13 +74,17 @@ async def chat_stream(
     try:
         async with httpx.AsyncClient(timeout=300) as client:
             async with client.stream("POST", f"{OLLAMA_BASE}/api/chat", json=body) as resp:
-                if resp.status_code == 404:
-                    raise ModelNotFoundError(
-                        f'Model "{model}" is not installed.\n'
-                        f"Pull it first:\n\n  ollama pull {model}\n\n"
-                        f"Or select an installed model from the dropdown."
+                if resp.status_code >= 400:
+                    await resp.aread()
+                    if resp.status_code == 404:
+                        raise ModelNotFoundError(
+                            f'Model "{model}" is not installed.\n'
+                            f"Pull it first:\n\n  ollama pull {model}\n\n"
+                            f"Or select an installed model from the dropdown."
+                        )
+                    raise RuntimeError(
+                        f"Ollama API error {resp.status_code}: {resp.text[:300]}"
                     )
-                resp.raise_for_status()
                 async for line in resp.aiter_lines():
                     if line.strip():
                         try:
@@ -94,7 +98,3 @@ async def chat_stream(
         ) from e
     except (ModelNotFoundError, OllamaOfflineError):
         raise
-    except httpx.HTTPStatusError as e:
-        raise RuntimeError(
-            f"Ollama API error {e.response.status_code}: {e.response.text[:300]}"
-        ) from e

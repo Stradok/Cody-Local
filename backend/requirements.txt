@@ -10,3 +10,7 @@ chromadb
 pypdf
 ebooklib
 html2text
+python-docx
+pytesseract
+pdf2image
+odfpy

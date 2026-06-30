@@ -10,13 +10,14 @@ import CodeEditor from "@/components/CodeEditor"
 import ChatPanel from "@/components/ChatPanel"
 import GitHubPanel from "@/components/GitHubPanel"
 import LibraryPanel from "@/components/LibraryPanel"
+import MemoryPanel from "@/components/MemoryPanel"
 import ToastStack, { ToastItem } from "@/components/Toast"
 
 export default function Home() {
   const [model, setModel] = useState("")
   const [workspace, setWorkspace] = useState("")
   const [openFile, setOpenFile] = useState<OpenFile | null>(null)
-  const [leftPanel, setLeftPanel] = useState<"files" | "github" | "library">("files")
+  const [leftPanel, setLeftPanel] = useState<"files" | "github" | "library" | "memory">("files")
   const [showLeft, setShowLeft] = useState(true)
   const [showChat, setShowChat] = useState(true)
   const [mobileView, setMobileView] = useState<"files" | "code" | "chat">("code")
@@ -59,16 +60,18 @@ export default function Home() {
     }
   }, [isMobile])
 
-  function cycleLeftPanel(p: "files" | "github" | "library"): "files" | "github" | "library" {
+  function cycleLeftPanel(p: "files" | "github" | "library" | "memory"): "files" | "github" | "library" | "memory" {
     if (p === "files") return "github"
     if (p === "github") return "library"
+    if (p === "library") return "memory"
     return "files"
   }
 
-  function leftPanelLabel(p: "files" | "github" | "library") {
+  function leftPanelLabel(p: "files" | "github" | "library" | "memory") {
     if (p === "files") return "Files"
     if (p === "github") return "GitHub"
-    return "Library"
+    if (p === "library") return "Library"
+    return "Memory"
   }
 
   const onFileWritten = useCallback(async (path: string, _ws: string) => {
@@ -93,7 +96,7 @@ export default function Home() {
             <h1 className="font-display font-extrabold text-base tracking-tight text-fg">
               CODY<span className="text-accent">LOCAL</span>
             </h1>
-            <ModelSelector selected={model} onSelect={setModel} />
+            <ModelSelector selected={model} onSelect={setModel} onToast={addToast} />
           </div>
         </header>
         <WorkspacePicker onWorkspaceOpen={handleWorkspaceOpen} />
@@ -111,14 +114,14 @@ export default function Home() {
             <h1 className="font-display font-extrabold text-sm tracking-tight text-fg">
               CODY<span className="text-accent">LOCAL</span>
             </h1>
-            <ModelSelector selected={model} onSelect={setModel} />
+            <ModelSelector selected={model} onSelect={setModel} onToast={addToast} />
           </div>
         </header>
         <div className="flex-1 overflow-auto px-4 pb-4">
           {mobileView === "files" && (
             <div className="neu-inset-deep rounded-[32px] p-3 h-full overflow-auto">
               <div className="flex gap-2 mb-3">
-                {(["files", "github", "library"] as const).map((p) => (
+                {(["files", "github", "library", "memory"] as const).map((p) => (
                   <button key={p} onClick={() => setLeftPanel(p)}
                     className={`flex-1 py-2 rounded-[16px] text-xs font-medium transition-all duration-300 ${
                       leftPanel === p ? "neu-inset-sm text-accent" : "neu-extruded-sm text-muted hover:text-fg"
@@ -130,7 +133,9 @@ export default function Home() {
                 ? <FileBrowser onFileSelect={handleFileSelect} workspace={workspace} onChangeWorkspace={handleChangeWorkspace} refreshKey={fileBrowserKey} />
                 : leftPanel === "github"
                 ? <GitHubPanel workspace={workspace} onFileSelect={handleFileSelect} />
-                : <LibraryPanel />}
+                : leftPanel === "library"
+                ? <LibraryPanel />
+                : <MemoryPanel />}
             </div>
           )}
           {mobileView === "code" && (
@@ -201,7 +206,7 @@ export default function Home() {
               {workspace.split("/").pop()}
             </span>
           </div>
-          <ModelSelector selected={model} onSelect={setModel} />
+          <ModelSelector selected={model} onSelect={setModel} onToast={addToast} />
         </div>
       </header>
 
@@ -212,13 +217,15 @@ export default function Home() {
         {showLeft && (
           <div className="neu-inset-deep rounded-[32px] p-3 w-60 shrink-0 overflow-hidden flex flex-col">
             <div className="px-2 pb-2 text-[9px] font-display font-bold text-muted/60 uppercase tracking-widest border-b border-muted/10 mb-2">
-              {leftPanel === "files" ? "Explorer" : leftPanel === "github" ? "GitHub" : "Library"}
+              {leftPanel === "files" ? "Explorer" : leftPanel === "github" ? "GitHub" : leftPanel === "library" ? "Library" : "Memory"}
             </div>
             {leftPanel === "files"
               ? <FileBrowser onFileSelect={handleFileSelect} workspace={workspace} onChangeWorkspace={handleChangeWorkspace} refreshKey={fileBrowserKey} />
               : leftPanel === "github"
               ? <GitHubPanel workspace={workspace} onFileSelect={handleFileSelect} />
-              : <LibraryPanel />
+              : leftPanel === "library"
+              ? <LibraryPanel />
+              : <MemoryPanel />
             }
           </div>
         )}

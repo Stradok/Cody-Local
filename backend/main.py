@@ -141,6 +141,17 @@ class LibrarySearchRequest(BaseModel):
     embed_model: str = "nomic-embed-text"
 
 
+class MemoryProcessRequest(BaseModel):
+    session_id: str
+    model: str
+    embed_model: str = "nomic-embed-text"
+
+
+class SemanticMemoryRequest(BaseModel):
+    key: str
+    value: str
+
+
 class SessionMessagesRequest(BaseModel):
     session_id: str
     workspace: str = ""
@@ -231,9 +242,18 @@ async def chat(req: ChatRequest):
 
         assistant_content = ""
 
+        # Inject relevant memory context (episodes + semantic facts)
+        memory_system = await _build_memory_context(
+            query=next((m["content"] for m in reversed(req.messages) if m["role"] == "user"), ""),
+            embed_model=req.embed_model,
+        )
+
         # Build message list based on mode
         if req.mode == "plan":
-            send_messages = [{"role": "system", "content": PLANNING_SYSTEM_PROMPT}] + list(req.messages)
+            system_parts = [PLANNING_SYSTEM_PROMPT]
+            if memory_system:
+                system_parts.insert(0, memory_system)
+            send_messages = [{"role": "system", "content": "\n\n".join(system_parts)}] + list(req.messages)
             send_tools = None
         elif req.mode == "learn":
             last_user = next(
@@ -264,10 +284,15 @@ async def chat(req: ChatRequest):
                     LEARN_SYSTEM_PROMPT
                     + "\n\nNote: No relevant library content was found. Answering from general knowledge."
                 )
+            if memory_system:
+                system_content = memory_system + "\n\n" + system_content
             send_messages = [{"role": "system", "content": system_content}] + list(req.messages)
             send_tools = None
         else:
-            send_messages = req.messages
+            if memory_system:
+                send_messages = [{"role": "system", "content": memory_system}] + list(req.messages)
+            else:
+                send_messages = req.messages
             send_tools = TOOL_DEFINITIONS
 
         try:
@@ -344,6 +369,12 @@ async def run_agent(req: AgentRequest):
 
     queue = agent_registry.register_queue(session_id)
 
+    # Persist session + user message so memory/process can load them later
+    await memory.upsert_session(session_id, req.workspace, req.model)
+    user_messages = [m for m in req.messages if m.get("role") == "user"]
+    if user_messages:
+        await memory.save_message(session_id, "user", user_messages[-1].get("content", ""))
+
     state = AgentState(
         messages=req.messages,
         workspace=req.workspace,
@@ -366,14 +397,22 @@ async def run_agent(req: AgentRequest):
     asyncio.create_task(run_graph())
 
     async def event_stream():
+        assistant_chunks: list[str] = []
         while True:
             try:
                 event = await asyncio.wait_for(queue.get(), timeout=300.0)
             except asyncio.TimeoutError:
                 yield f"data: {json.dumps({'type': 'error', 'message': 'Agent timed out'})}\n\n"
                 break
+            if event.get("type") == "chunk":
+                assistant_chunks.append(event.get("content", ""))
             yield f"data: {json.dumps(event)}\n\n"
-            if event.get("type") in ("done", "error"):
+            if event.get("type") == "done":
+                final_content = "".join(assistant_chunks).strip()
+                if final_content:
+                    await memory.save_message(session_id, "assistant", final_content)
+                break
+            if event.get("type") == "error":
                 break
 
     return StreamingResponse(event_stream(), media_type="text/event-stream")
@@ -696,6 +735,35 @@ async def library_delete_book(book_id: str):
     return {"status": "deleted", "book_id": book_id}
 
 
+async def _build_memory_context(query: str, embed_model: str) -> str:
+    """Search episodic + semantic memory and return a formatted context block, or '' if empty."""
+    if not query:
+        return ""
+    try:
+        from library.store import embed_texts, search_episodes, search_semantic
+        embeds = await embed_texts([query], model=embed_model)
+        emb = embeds[0]
+        episodes = search_episodes(emb, n_results=3)
+        semantic = search_semantic(emb, n_results=6)
+        if not episodes and not semantic:
+            return ""
+        parts: list[str] = ["[MEMORY CONTEXT — from past sessions]"]
+        if semantic:
+            parts.append("Known facts about you and your work:")
+            for s in semantic:
+                parts.append(f"  • {s['key']}: {s['value']}")
+        if episodes:
+            parts.append("Relevant past sessions:")
+            for ep in episodes:
+                date = ep.get("created_at", "")[:10]
+                parts.append(f"  [{date}] {ep['summary']}")
+        parts.append("[END MEMORY]")
+        return "\n".join(parts)
+    except Exception as e:
+        logger.debug("[memory] context build skipped: %s", e)
+        return ""
+
+
 @app.post("/api/library/search")
 async def library_search(req: LibrarySearchRequest):
     from library.store import embed_texts, search_library
@@ -715,3 +783,130 @@ async def library_search(req: LibrarySearchRequest):
         raise HTTPException(status_code=500, detail=f"Search failed: {e}")
 
     return {"results": results, "query": req.query}
+
+
+# ── Memory ────────────────────────────────────────────────────────────────────
+
+@app.post("/api/memory/process")
+async def memory_process(req: MemoryProcessRequest):
+    """Summarise a session, extract semantic facts, embed + store both."""
+    from memory_agent import process_session
+    from library.store import embed_texts, add_episode_embedding, add_semantic_embedding
+
+    messages = await memory.load_session(req.session_id)
+    if not messages:
+        raise HTTPException(status_code=404, detail="Session not found or empty")
+
+    result = await process_session(req.session_id, messages, req.model)
+
+    saved_episode_id = None
+    if result["summary"]:
+        sessions = await memory.list_sessions()
+        meta = next((s for s in sessions if s["session_id"] == req.session_id), {})
+        episode_id = await memory.save_episode(
+            session_id=req.session_id,
+            workspace=meta.get("workspace", ""),
+            model=meta.get("model", req.model),
+            summary=result["summary"],
+        )
+        saved_episode_id = episode_id
+        try:
+            embeds = await embed_texts([result["summary"]], model=req.embed_model)
+            episodes_list = await memory.list_episodes(limit=1)
+            if episodes_list:
+                add_episode_embedding(
+                    episode_id=episode_id,
+                    summary=result["summary"],
+                    embedding=embeds[0],
+                    session_id=req.session_id,
+                    workspace=meta.get("workspace", ""),
+                    created_at=episodes_list[0].get("created_at", ""),
+                )
+        except Exception as e:
+            logger.warning("[memory] episode embed failed: %s", e)
+
+    saved_facts: list[str] = []
+    for fact in result["facts"]:
+        key = fact.get("key", "").strip()
+        value = fact.get("value", "").strip()
+        if not key or not value:
+            continue
+        await memory.upsert_semantic(key, value, source=req.session_id)
+        saved_facts.append(key)
+        try:
+            embeds = await embed_texts([f"{key}: {value}"], model=req.embed_model)
+            semantics = await memory.list_semantics()
+            sem = next((s for s in semantics if s["key"] == key), None)
+            if sem:
+                add_semantic_embedding(
+                    semantic_id=sem["id"],
+                    key=key,
+                    value=value,
+                    embedding=embeds[0],
+                    source=req.session_id,
+                )
+        except Exception as e:
+            logger.warning("[memory] semantic embed failed for %s: %s", key, e)
+
+    log_path = await memory.write_session_log(req.session_id)
+
+    logger.info(
+        "[memory] processed session %s — summary=%s facts=%d log=%s",
+        req.session_id[:8], bool(result["summary"]), len(saved_facts), log_path,
+    )
+    return {
+        "summary": result["summary"],
+        "facts_saved": saved_facts,
+        "episode_id": saved_episode_id,
+        "log_path": log_path,
+    }
+
+
+@app.get("/api/memory/episodes")
+async def memory_list_episodes():
+    episodes = await memory.list_episodes()
+    return {"episodes": episodes}
+
+
+@app.delete("/api/memory/episodes/{episode_id}")
+async def memory_delete_episode(episode_id: int):
+    from library.store import delete_episode_embedding
+    delete_episode_embedding(episode_id)
+    await memory.delete_episode(episode_id)
+    return {"status": "deleted"}
+
+
+@app.get("/api/memory/semantic")
+async def memory_list_semantic():
+    facts = await memory.list_semantics()
+    return {"facts": facts}
+
+
+@app.post("/api/memory/semantic")
+async def memory_add_semantic(req: SemanticMemoryRequest):
+    await memory.upsert_semantic(req.key.strip(), req.value.strip())
+    facts = await memory.list_semantics()
+    sem = next((s for s in facts if s["key"] == req.key.strip()), None)
+    return {"status": "saved", "fact": sem}
+
+
+@app.delete("/api/memory/semantic/{semantic_id}")
+async def memory_delete_semantic(semantic_id: int):
+    from library.store import delete_semantic_embedding
+    delete_semantic_embedding(semantic_id)
+    await memory.delete_semantic(semantic_id)
+    return {"status": "deleted"}
+
+
+@app.get("/api/memory/session-logs")
+async def memory_list_session_logs():
+    from memory import SESSION_LOGS_DIR
+    os.makedirs(SESSION_LOGS_DIR, exist_ok=True)
+    files = sorted(
+        [f for f in os.listdir(SESSION_LOGS_DIR) if f.endswith(".md")],
+        reverse=True,
+    )
+    return {
+        "logs_dir": SESSION_LOGS_DIR,
+        "logs": [{"filename": f, "path": os.path.join(SESSION_LOGS_DIR, f)} for f in files],
+    }
