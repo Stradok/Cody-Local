@@ -74,7 +74,9 @@ export default function WorkspacePicker({ onWorkspaceOpen }: Props) {
     const data = await exploreDirectory(dir)
     if (data.error) { setErrors(data.error); return }
     setBrowseEntries(data.entries)
-    setBrowseHistory((prev) => [...prev, dir])
+    if (browseHistory.length === 0 || browseHistory[browseHistory.length - 1] !== dir) {
+      setBrowseHistory((prev) => [...prev, dir])
+    }
   }
 
   function handleBrowseBack() {
@@ -178,7 +180,7 @@ export default function WorkspacePicker({ onWorkspaceOpen }: Props) {
                 </span>
               )}
             </div>
-            <button onClick={() => setBrowsing(true)}
+            <button onClick={() => { setBrowsing(true); handleBrowseOpen("~") }}
               className="neu-extruded-sm bg-[#E0E5EC] text-muted hover:text-fg px-4 py-3 rounded-[16px] text-sm font-medium transition-all duration-300 hover:-translate-y-[1px] active:translate-y-[0.5px] active:neu-inset-sm"
             >Browse</button>
             <button onClick={() => handleOpen()} disabled={valid === false || opening}
