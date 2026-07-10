@@ -1,22 +1,31 @@
-Building offline AI when the internet goes dark 🌍
+# Cody-Local on LinkedIn
 
-A few weeks ago, AJK in Pakistan went offline for 35 days. My cousin was deep into learning with NotebookLM — suddenly, gone. No internet. No AI. No learning.
+## Post Caption
 
-So I built Cody-Local: a fully offline AI coding assistant that runs on any machine. No cloud, no APIs, no internet required.
+Built an offline AI coding assistant that works everywhere. No internet needed, runs on your laptop or external drive.
 
-The Challenge: How do you get enterprise-grade AI capabilities into a world with unreliable connectivity?
+The use case hit me when my hometown lost internet for 35 days. My cousin was learning to code using AI, and suddenly had nothing. So I built something that runs locally using open-source models - no cloud, no APIs, no dependency on internet connectivity.
 
-The Solution:
-- 🏃 Lightweight: Embedding model (274MB) + LLM (900MB) — total 1.2GB
-- 📚 Universal database: Index survival guides, cooking recipes, code docs, anything — semantic search across your data
-- 💻 Autonomous agent: Writes code, debugs, refactors — all locally
-- 📱 Truly portable: External drive, USB stick, anywhere with Python + Node.js
-- ⚡ Low hardware footprint: Runs on laptops, even modest hardware
+What makes it different: it's not just a chatbot. It's an autonomous agent. Write files, run tests, commit to git, all offline. You can index your own books and documents for semantic search. Ask it survival questions with the Army Manual loaded, medical questions with medical texts - whatever you feed it.
 
-What makes this different: We chose models like Qwen2.5-Coder (900MB) + Nomic Embed Text (274MB) — small enough to distribute worldwide, powerful enough to be useful. It's modular architecture means: need better performance? Swap in a 12B parameter model. Want ultra-small? Use a 360M model. Your choice.
+The tech stack is pragmatic. Qwen for coding, Gemma for reasoning, all running through Ollama locally. The whole thing fits on a USB stick. I built guardrails specifically for small models because not everyone has access to massive compute.
 
-The real win? A community in rural Pakistan, a student with no electricity, someone learning offline — they all get access to the same AI tools the world uses. Not watered down. Not locked behind paywalls. Just... available.
+Open source. Portable. No credit cards needed.
 
-Open source, fully portable, works offline. This is what democratizing AI actually looks like.
+---
 
-GitHub: github.com/Stradok/Cody-Local
+## Screenshots
+
+![Cody-Local with Document Library and Snake Bite Survival Guide](1.png)
+*Indexing survival guides and asking real questions offline*
+
+![Cody-Local Code Editor with Run Button Working](2.png)
+*Write code, run it immediately, see output*
+
+---
+
+## Links
+
+GitHub: https://github.com/Stradok/Cody-Local
+
+Made for people like my cousin. Made for places like my hometown.
