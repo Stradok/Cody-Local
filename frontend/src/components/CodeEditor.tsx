@@ -49,6 +49,8 @@ interface Props {
 
 export default function CodeEditor({ file, workspace }: Props) {
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle")
+  const [runStatus, setRunStatus] = useState<"idle" | "running" | "done" | "error">("idle")
+  const [output, setOutput] = useState("")
   const [lineCount, setLineCount] = useState(0)
   const editorValueRef = useRef<string>("")
 
@@ -65,6 +67,26 @@ export default function CodeEditor({ file, workspace }: Props) {
     const r = await saveFileContent(file.path, editorValueRef.current, workspace)
     setSaveStatus(r.ok ? "saved" : "error")
     setTimeout(() => setSaveStatus("idle"), 2000)
+  }, [file, workspace])
+
+  const handleRun = useCallback(async () => {
+    if (!file || !workspace) return
+    setRunStatus("running")
+    setOutput("Running...")
+    try {
+      const r = await fetch(`/api/workspace/execute`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ workspace, command: `${detectLang(file.name) === "python" ? "python" : "node"} "${file.path}"` }),
+      })
+      const data = await r.json()
+      setOutput(data.output || data.error || "No output")
+      setRunStatus(data.error ? "error" : "done")
+      setTimeout(() => setRunStatus("idle"), 3000)
+    } catch (err) {
+      setOutput(`Error: ${err}`)
+      setRunStatus("error")
+    }
   }, [file, workspace])
 
   const handleMount: OnMount = useCallback((editor, monaco) => {
@@ -130,45 +152,66 @@ export default function CodeEditor({ file, workspace }: Props) {
           >
             Save
           </button>
+          <button
+            onClick={handleRun}
+            disabled={runStatus === "running" || !workspace}
+            className="px-3 py-1 rounded-lg text-[10px] font-medium bg-[#1e8a3a] text-[#a6e3a1] hover:bg-[#238a40] hover:text-white transition-all duration-150 disabled:opacity-40"
+          >
+            {runStatus === "running" ? "Running..." : "▶ Run"}
+          </button>
         </div>
       </div>
 
-      {/* Monaco */}
-      <div className="flex-1 overflow-hidden">
-        <Editor
-          height="100%"
-          language={lang}
-          defaultValue={file.content}
-          key={file.path}
-          theme="vs-dark"
-          onMount={handleMount}
-          options={{
-            fontSize: 13,
-            lineHeight: 22,
-            fontFamily: "'JetBrains Mono', 'Cascadia Code', 'Fira Code', Menlo, monospace",
-            fontLigatures: true,
-            minimap: { enabled: false },
-            scrollBeyondLastLine: false,
-            wordWrap: "on",
-            tabSize: 2,
-            insertSpaces: true,
-            renderLineHighlight: "line",
-            cursorBlinking: "smooth",
-            cursorSmoothCaretAnimation: "on",
-            smoothScrolling: true,
-            padding: { top: 16, bottom: 32 },
-            renderWhitespace: "selection",
-            bracketPairColorization: { enabled: true },
-            guides: { indentation: true, bracketPairs: true },
-            scrollbar: { verticalScrollbarSize: 5, horizontalScrollbarSize: 5 },
-            overviewRulerBorder: false,
-            hideCursorInOverviewRuler: true,
-            lineNumbers: "on",
-            glyphMargin: false,
-            folding: true,
-            suggest: { showWords: false },
-          }}
-        />
+      {/* Monaco + Output */}
+      <div className="flex-1 overflow-hidden flex flex-col gap-0">
+        <div className="flex-1 overflow-hidden">
+          <Editor
+            height="100%"
+            language={lang}
+            defaultValue={file.content}
+            key={file.path}
+            theme="vs-dark"
+            onMount={handleMount}
+            options={{
+              fontSize: 13,
+              lineHeight: 22,
+              fontFamily: "'JetBrains Mono', 'Cascadia Code', 'Fira Code', Menlo, monospace",
+              fontLigatures: true,
+              minimap: { enabled: false },
+              scrollBeyondLastLine: false,
+              wordWrap: "on",
+              tabSize: 2,
+              insertSpaces: true,
+              renderLineHighlight: "line",
+              cursorBlinking: "smooth",
+              cursorSmoothCaretAnimation: "on",
+              smoothScrolling: true,
+              padding: { top: 16, bottom: 32 },
+              renderWhitespace: "selection",
+              bracketPairColorization: { enabled: true },
+              guides: { indentation: true, bracketPairs: true },
+              scrollbar: { verticalScrollbarSize: 5, horizontalScrollbarSize: 5 },
+              overviewRulerBorder: false,
+              hideCursorInOverviewRuler: true,
+              lineNumbers: "on",
+              glyphMargin: false,
+              folding: true,
+              suggest: { showWords: false },
+            }}
+          />
+        </div>
+
+        {/* Output Panel */}
+        {output && (
+          <div className="shrink-0 h-32 bg-[#0f0f15] border-t border-[#2a2a40] p-3 overflow-auto">
+            <div className="text-[11px] font-mono text-[#a6e3a1]">
+              <div className="text-[#6c7086] mb-2">Output:</div>
+              <pre className="whitespace-pre-wrap text-[#cdd6f4] break-words">
+                {output}
+              </pre>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )

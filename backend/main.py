@@ -576,6 +576,40 @@ async def read_workspace_file(req: FileReadRequest):
         raise HTTPException(status_code=500, detail=f"Error reading file: {e}")
 
 
+@app.post("/api/workspace/execute")
+async def execute_code(req: dict):
+    """Execute code file and return output."""
+    workspace = req.get("workspace", "").strip()
+    command = req.get("command", "").strip()
+
+    if not workspace or not command:
+        raise HTTPException(status_code=400, detail="workspace and command required")
+
+    workspace_path = os.path.expanduser(workspace)
+    if not os.path.isdir(workspace_path):
+        raise HTTPException(status_code=400, detail="Workspace directory does not exist")
+
+    try:
+        import subprocess
+        result = subprocess.run(
+            command,
+            shell=True,
+            cwd=workspace_path,
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        output = (result.stdout + result.stderr).strip()
+        return {
+            "output": output if output else "(No output)",
+            "error": None if result.returncode == 0 else f"Exit code: {result.returncode}",
+        }
+    except subprocess.TimeoutExpired:
+        return {"output": "", "error": "Command timed out (10s limit)"}
+    except Exception as e:
+        return {"output": "", "error": f"Error executing command: {e}"}
+
+
 # ── Sessions ──────────────────────────────────────────────────────────────────
 
 @app.get("/api/sessions")
