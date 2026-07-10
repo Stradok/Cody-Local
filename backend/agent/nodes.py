@@ -27,50 +27,81 @@ VALIDATION_TOOLS = _filter_tools(_VALIDATION_TOOL_NAMES)
 
 # ── Prompts ───────────────────────────────────────────────────────────────────
 
-PLANNER_PROMPT = """You are a software architect. Create a concrete implementation plan.
+PLANNER_PROMPT = """You are a software architect. Create a CONCRETE, EXECUTABLE implementation plan.
 
-PROJECT STRUCTURE:
+PROJECT:
 {tree}
 
-USER REQUEST: {query}
+REQUEST: {query}
 
-Output ONLY a numbered list of steps. Rules:
-- Maximum 10 steps, minimum 1
-- Each step must be specific and name exact files/commands
-- File creation steps: name the exact path (e.g. "Create src/api/routes.py with...")
-- Install steps: name exact packages
-- Steps in logical execution order
-- No vague steps like "set up the backend" or "implement the feature"
+Create a numbered step list. RULES:
+- 1-10 steps maximum
+- EVERY step must name EXACT file paths
+- For code tasks: "Create path/file.py with: [language] code that does X"
+- For shell tasks: "Run: [exact command]"
+- Logical order — executable from step 1
+- NO vague steps like "set up", "implement", "configure"
+- NO "then modify" — each step is independent
 
-Example format:
-1. Create requirements.txt with: fastapi, uvicorn, httpx
-2. Create backend/main.py with a FastAPI app and /health endpoint
-3. Run: pip install -r requirements.txt"""
+FORMAT:
+1. Create src/main.py with: Python code that takes student name/mark input, stores in tuple, appends to list
+2. Run: python src/main.py
+[etc]
+
+CRITICAL: Be specific about file paths and content."""
 
 
-CODING_PROMPT = """You are a senior software engineer. Execute this coding task using your tools.
+CODING_PROMPT = """You are an expert code execution agent. Your ONLY job is to write code files using tools. Not to explain, not to plan — only to EXECUTE.
 
 TASK: {next_step}
 
-PLAN (for context):
+CONTEXT:
 {plan}
 
-ALREADY DONE:
+DONE:
 {completed}
 
-PROJECT STRUCTURE:
+FILES:
 {tree}
 
-MANDATORY RULES — follow every one:
-1. Call write_file for EVERY file you create or modify. Do NOT output code as text — write it to disk.
-2. Write the COMPLETE file content in each write_file call. No "..." truncations. No "# TODO" placeholders. No "# add implementation here". Write the real, working code.
-3. Call read_file before modifying any existing file to see its current content.
-4. After each write_file call, verify by calling read_file on the same path.
-5. If write_file returns a warning about empty content, call write_file again with the full content.
-6. Every file must be immediately runnable: include all imports, type hints, and error handling.
-7. Use create_directory before writing files in new subdirectories.
+═══════════════════════════════════════════════════════════════
+CRITICAL RULES — FOLLOW EXACTLY OR YOU FAIL
+═══════════════════════════════════════════════════════════════
 
-Execute the task now. Use tools."""
+RULE #1: WRITE CODE IMMEDIATELY — NO EXCEPTIONS
+→ Do NOT output code as text
+→ Do NOT say "I will write..."
+→ Do NOT explain your approach
+→ CALL write_file RIGHT NOW with complete code
+→ Violations of this rule are CRITICAL FAILURES
+
+RULE #2: COMPLETE FILE CONTENT ONLY
+→ Include ALL imports, ALL functions, ALL classes
+→ No "..." truncations
+→ No "# TODO:" or "# implement this"
+→ No placeholders or pseudocode
+→ Write production-ready code that runs immediately
+→ If code is long, write it ALL in one write_file call
+
+RULE #3: FILE OPERATIONS SEQUENCE
+→ For NEW files: read_file (to check if exists) → write_file (with complete content)
+→ For EXISTING files: read_file (get current content) → write_file (with full updated content)
+→ After write_file: read_file (verify it matches)
+
+RULE #4: TOOL USAGE IS MANDATORY
+→ You MUST call at least one tool in this response
+→ If the task is to write code, call write_file
+→ If the task is to create directories, call create_directory then write_file
+→ If the task is to verify, call read_file
+
+RULE #5: RESPONSE FORMAT
+→ Start IMMEDIATELY with tool calls
+→ Include brief explanations AFTER tools are called
+→ Never explain before executing
+
+═══════════════════════════════════════════════════════════════
+
+Execute now. Your first response must contain tool calls."""
 
 
 FILESYSTEM_PROMPT = """You are a filesystem operations agent. Execute this filesystem task.
@@ -334,8 +365,58 @@ async def _run_step(
         if round_content:
             messages.append({"role": "assistant", "content": round_content})
 
+        # GUARDRAIL: Detect code blocks in text and convert to write_file
+        if agent_label == "coding" and not got_tool_call and round_content:
+            import re
+            # Look for code blocks like ```python ... ``` or ```js ... ```
+            code_blocks = re.findall(r'```(?:python|javascript|js|py)?\s*\n(.*?)\n```', round_content, re.DOTALL)
+            if code_blocks:
+                logger.warning(
+                    "[%s] Detected code blocks in text (not tool calls). Extracting and forcing write_file.",
+                    agent_label,
+                )
+                extract_message = (
+                    "❌ You output code as text in code blocks, but did not call write_file.\n\n"
+                    "I detected code blocks in your response. You must call write_file to write them to disk.\n"
+                    "Do NOT output code as text — that does NOT create files.\n"
+                    "Call write_file with the exact file path and complete code content.\n\n"
+                    "Try again. Call write_file NOW with your code."
+                )
+                messages.append({"role": "user", "content": extract_message})
+                if queue:
+                    await queue.put({
+                        "type": "warning",
+                        "message": "Code blocks detected but not written to file. Retrying..."
+                    })
+                # Continue loop to retry with the correction
+                continue
+
         if not got_tool_call:
-            break  # model finished — no more tool calls
+            # GUARDRAIL: If this is a coding task and no tools were called, force the model to use tools
+            if agent_label == "coding" and round_num < max_tool_rounds - 1:
+                logger.warning(
+                    "[%s] NO TOOL CALLS in round %d. Forcing tool usage for step: %s",
+                    agent_label, round_num, step_desc[:60],
+                )
+                correction_message = (
+                    "❌ ERROR: You did not call any tools. Your response was text only.\n\n"
+                    "You MUST call write_file to complete this task. There is no alternative.\n"
+                    "Instructions:\n"
+                    "1. Call write_file with the file path and complete code content\n"
+                    "2. Do not output code as text\n"
+                    "3. Write complete, working code — no placeholders\n\n"
+                    "Try again. CALL write_file NOW."
+                )
+                messages.append({"role": "user", "content": correction_message})
+                if queue:
+                    await queue.put({
+                        "type": "warning",
+                        "message": "Model didn't use tools. Forcing retry..."
+                    })
+                # Continue loop to retry
+                continue
+            else:
+                break  # model finished — no more tool calls
 
     state.messages = messages
     state.done[state.current_step] = True
