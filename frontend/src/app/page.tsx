@@ -178,27 +178,29 @@ export default function Home() {
               CODY<span className="text-accent">LOCAL</span>
             </h1>
             <div className="h-5 w-px bg-muted/20" />
-            <div className="flex items-center gap-1.5">
-              <button onClick={() => setShowLeft(!showLeft)}
-                className={`px-3 py-1.5 rounded-[14px] text-[11px] font-medium transition-all duration-200 ${
-                  showLeft ? "neu-inset-sm text-accent" : "neu-extruded-sm text-muted hover:text-fg"
-                }`}
-              >
-                {leftPanelLabel(leftPanel)} {showLeft ? "▾" : "▸"}
-              </button>
-              {showLeft && (
-                <button onClick={() => setLeftPanel(cycleLeftPanel(leftPanel))}
-                  className="px-3 py-1.5 rounded-[14px] text-[11px] font-medium neu-extruded-sm text-muted hover:text-fg transition-all duration-200"
+            <div className="flex items-center gap-0.5">
+              {/* Panel tabs */}
+              {(["files", "library", "github", "memory"] as const).map((panel) => (
+                <button
+                  key={panel}
+                  onClick={() => { setLeftPanel(panel); setShowLeft(true); }}
+                  className={`px-3.5 py-1.5 rounded-[14px] text-[11px] font-medium transition-all duration-200 whitespace-nowrap ${
+                    showLeft && leftPanel === panel
+                      ? "neu-inset-sm text-accent font-semibold"
+                      : "neu-extruded-sm text-muted hover:text-fg"
+                  }`}
+                  title={panel === "files" ? "Project files" : panel === "library" ? "Indexed books & docs" : panel === "github" ? "GitHub repos" : "Session memory"}
                 >
-                  {leftPanelLabel(cycleLeftPanel(leftPanel))}
+                  {panel === "files" ? "📁 Files" : panel === "library" ? "📚 Library" : panel === "github" ? "🔗 GitHub" : "💭 Memory"}
                 </button>
-              )}
+              ))}
+              <div className="h-5 w-px bg-muted/20 mx-1" />
               <button
                 onClick={() => handleWorkspaceOpen(workspace)}
                 className="px-3 py-1.5 rounded-[14px] text-[11px] font-medium neu-extruded-sm text-muted hover:text-fg transition-all"
                 title="Change workspace"
               >
-                Open…
+                ↗ Workspace
               </button>
             </div>
             <div className="h-5 w-px bg-muted/20" />
@@ -217,7 +219,7 @@ export default function Home() {
         {showLeft && (
           <div className="neu-inset-deep rounded-[32px] p-3 w-60 shrink-0 overflow-hidden flex flex-col">
             <div className="px-2 pb-2 text-[9px] font-display font-bold text-muted/60 uppercase tracking-widest border-b border-muted/10 mb-2">
-              {leftPanel === "files" ? "Explorer" : leftPanel === "github" ? "GitHub" : leftPanel === "library" ? "Library" : "Memory"}
+              {leftPanel === "files" ? "📁 Project Files" : leftPanel === "github" ? "🔗 GitHub" : leftPanel === "library" ? "📚 Document Library" : "💭 Memories"}
             </div>
             {leftPanel === "files"
               ? <FileBrowser onFileSelect={handleFileSelect} workspace={workspace} onChangeWorkspace={handleChangeWorkspace} refreshKey={fileBrowserKey} />
@@ -241,7 +243,7 @@ export default function Home() {
         {showChat ? (
           <div className="neu-inset-deep rounded-[32px] p-3 w-[320px] shrink-0 flex flex-col">
             <div className="flex items-center justify-between px-1 pb-2 border-b border-muted/10 mb-2">
-              <span className="text-[9px] font-display font-bold text-muted/60 uppercase tracking-widest">Assistant</span>
+              <span className="text-[9px] font-display font-bold text-muted/60 uppercase tracking-widest">💬 Chat</span>
               <button onClick={() => setShowChat(false)}
                 className="neu-extruded-sm w-6 h-6 rounded-full flex items-center justify-center text-[9px] text-muted hover:text-fg transition-all duration-200"
               >✕</button>
