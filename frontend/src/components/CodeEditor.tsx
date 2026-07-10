@@ -2,7 +2,7 @@
 
 import { OpenFile } from "@/types"
 import { useState, useRef, useCallback, useEffect } from "react"
-import { saveFileContent } from "@/lib/api"
+import { saveFileContent, API_BASE } from "@/lib/api"
 import dynamic from "next/dynamic"
 import type { OnMount } from "@monaco-editor/react"
 
@@ -78,7 +78,7 @@ export default function CodeEditor({ file, workspace }: Props) {
       const executor = lang === "python" ? "python3" : lang === "javascript" ? "node" : "python3"
       const command = `${executor} "${file.path}"`
 
-      const r = await fetch(`/api/workspace/execute`, {
+      const r = await fetch(`${API_BASE}/api/workspace/execute`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ workspace, command }),
