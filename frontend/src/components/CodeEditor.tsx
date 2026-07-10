@@ -74,11 +74,23 @@ export default function CodeEditor({ file, workspace }: Props) {
     setRunStatus("running")
     setOutput("Running...")
     try {
+      const lang = detectLang(file.name)
+      const executor = lang === "python" ? "python3" : lang === "javascript" ? "node" : "python3"
+      const command = `${executor} "${file.path}"`
+
       const r = await fetch(`/api/workspace/execute`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ workspace, command: `${detectLang(file.name) === "python" ? "python" : "node"} "${file.path}"` }),
+        body: JSON.stringify({ workspace, command }),
       })
+
+      if (!r.ok) {
+        const text = await r.text()
+        setOutput(`Error: ${r.status} ${r.statusText}\n${text}`)
+        setRunStatus("error")
+        return
+      }
+
       const data = await r.json()
       setOutput(data.output || data.error || "No output")
       setRunStatus(data.error ? "error" : "done")

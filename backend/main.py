@@ -576,11 +576,16 @@ async def read_workspace_file(req: FileReadRequest):
         raise HTTPException(status_code=500, detail=f"Error reading file: {e}")
 
 
+class ExecuteRequest(BaseModel):
+    workspace: str
+    command: str
+
+
 @app.post("/api/workspace/execute")
-async def execute_code(req: dict):
+async def execute_code(req: ExecuteRequest):
     """Execute code file and return output."""
-    workspace = req.get("workspace", "").strip()
-    command = req.get("command", "").strip()
+    workspace = req.workspace.strip()
+    command = req.command.strip()
 
     if not workspace or not command:
         raise HTTPException(status_code=400, detail="workspace and command required")
