@@ -160,7 +160,7 @@ export default function WorkspacePicker({ onWorkspaceOpen }: Props) {
                 ref={inputRef}
                 value={path}
                 onChange={(e) => handlePathChange(e.target.value)}
-                onKeyDown={(e) => { if (e.key === "Enter" && valid) handleOpen() }}
+                onKeyDown={(e) => { if (e.key === "Enter" && path.trim()) handleOpen() }}
                 placeholder="~/projects/my-app"
                 className="w-full bg-[#E0E5EC] text-fg text-sm px-4 py-3 rounded-[16px] neu-inset-sm placeholder:text-[#A0AEC0] transition-all duration-300 focus:neu-inset-deep pr-10"
                 spellCheck={false}
@@ -181,7 +181,7 @@ export default function WorkspacePicker({ onWorkspaceOpen }: Props) {
             <button onClick={() => setBrowsing(true)}
               className="neu-extruded-sm bg-[#E0E5EC] text-muted hover:text-fg px-4 py-3 rounded-[16px] text-sm font-medium transition-all duration-300 hover:-translate-y-[1px] active:translate-y-[0.5px] active:neu-inset-sm"
             >Browse</button>
-            <button onClick={() => handleOpen()} disabled={!valid || opening}
+            <button onClick={() => handleOpen()} disabled={valid === false || opening}
               className="neu-extruded-sm bg-[#E0E5EC] text-accent hover:text-fg px-5 py-3 rounded-[16px] text-sm font-medium transition-all duration-300 hover:-translate-y-[1px] active:translate-y-[0.5px] active:neu-inset-sm disabled:opacity-40"
             >{opening ? "Opening..." : "Open"}</button>
           </div>
