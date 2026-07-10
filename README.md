@@ -12,10 +12,48 @@ Built with a **FastAPI** backend and a **Next.js** frontend, Cody Local supports
 - **Chat mode** — streaming chat with tool-calling (file read/write, shell execution, GitHub)
 - **Plan mode** — software architect persona that produces structured implementation plans without writing code
 - **Agent mode** — autonomous LangGraph agent that breaks tasks into steps and executes them using specialist sub-agents (planner, coder, filesystem, terminal, validator)
-- **GitHub integration** — browse repos, view issues and PRs, clone repositories, commit and push
+- **Complete file management** — read, write, create, delete, move, rename files and directories
+- **Shell execution** — run any command: tests, builds, scripts, package management
+- **Full Git workflow** — clone, branch, commit, push, pull, view history and diffs (all 5 new git commands!)
+- **GitHub integration** — repos, issues, PRs, clone, commit, push
 - **Session memory** — conversation history persisted in a local SQLite database
 - **Workspace sandboxing** — file and shell operations are scoped to the open workspace; path traversal is blocked
 - **Auto port selection** — if the default ports are taken, the next free port is used automatically
+- **Works completely offline** — no internet required, all processing local
+
+---
+
+## What Can It Do?
+
+Cody-Local can **do everything Claude Code does** — completely offline:
+
+✅ **Code Development**
+- Write and modify code in any language
+- Read existing code and understand it
+- Debug errors automatically
+- Run tests and verify code works
+
+✅ **File & Project Management**
+- Read/write/delete/organize files
+- Create project structures
+- Manage directories
+- Browse code repositories
+
+✅ **Git & GitHub Workflow**
+- Clone repositories
+- Create and switch branches
+- Commit changes with messages
+- Push to GitHub
+- View commit history and diffs
+- Create pull requests and issues
+
+✅ **Autonomous Execution**
+- Multi-step task execution
+- Automatic error recovery
+- Verify work before finishing
+- Iterative refinement
+
+**Full details:** See **[CAPABILITIES.md](./CAPABILITIES.md)** for real-world examples and use cases.
 
 ---
 
@@ -146,6 +184,7 @@ The GitHub token can also be set at runtime from the Settings panel in the UI �
 | Command | Description |
 |---|---|
 | `make setup` | Install Python venv + npm dependencies (run once) |
+| `make portable` | Complete setup: check Ollama, download models, install deps (recommended!) |
 | `make run` | Start both backend and frontend |
 | `make run-backend` | Start the FastAPI backend only |
 | `make run-frontend` | Start the Next.js frontend only |
@@ -160,6 +199,7 @@ The GitHub token can also be set at runtime from the Settings panel in the UI �
 
 The backend exposes a REST + SSE API at `http://127.0.0.1:8000`. Interactive docs are at `/docs`.
 
+### Main Endpoints
 | Endpoint | Method | Description |
 |---|---|---|
 | `/api/health` | GET | Health check |
@@ -170,6 +210,15 @@ The backend exposes a REST + SSE API at `http://127.0.0.1:8000`. Interactive doc
 | `/api/workspace` | POST | Open a workspace directory |
 | `/api/sessions` | GET | List chat sessions |
 | `/api/github/*` | POST/GET | GitHub integration endpoints |
+
+### Available Tools (Auto-called by Agent)
+**File Operations:** `read_file`, `write_file`, `create_directory`, `move_file`, `rename_file`, `delete_file`, `delete_directory`, `list_directory`
+
+**Shell:** `execute_command` (runs any shell command)
+
+**Git Operations:** `git_status`, `git_diff`, `git_branch`, `git_pull`, `git_log`, `clone_repo`, `commit_and_push`
+
+**GitHub API:** `search_repositories`, `get_issue`, `create_issue`, `create_pr`, `list_repos`, `get_user`
 
 Streaming endpoints return `text/event-stream` (SSE) with typed JSON events: `chunk`, `tool_call`, `tool_result`, `plan`, `step_start`, `step_done`, `done`, `error`.
 
@@ -198,6 +247,15 @@ Streaming endpoints return `text/event-stream` (SSE) with typed JSON events: `ch
 - [Tailwind CSS](https://tailwindcss.com)
 - [Monaco Editor](https://microsoft.github.io/monaco-editor/) — in-browser code editor
 - [Lucide React](https://lucide.dev) — icons
+
+---
+
+## Documentation
+
+- **[CAPABILITIES.md](./CAPABILITIES.md)** — Complete guide: what Cody-Local can do, real examples, use cases
+- **[PORTABLE.md](./PORTABLE.md)** — Offline deployment: how to use on USB drives, external drives, no internet
+- **[MODELS.md](./MODELS.md)** — AI model selection guide: choosing the right model for your hardware
+- **[DEVELOPMENT.md](./DEVELOPMENT.md)** — For contributors: architecture deep-dive, extending with custom tools
 
 ---
 
