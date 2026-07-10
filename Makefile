@@ -16,7 +16,7 @@ BACKEND_BASE  := 8000
 FRONTEND_BASE := 3000
 OLLAMA_HOST   := http://localhost:11434
 
-.PHONY: all setup setup-backend setup-frontend \
+.PHONY: all setup setup-backend setup-frontend portable \
         run run-backend run-frontend \
         health check logs \
         clean clean-all help
@@ -38,7 +38,8 @@ help:
 	@printf "\033[36mSetup\033[0m\n"
 	@printf "  make setup          Install all dependencies (run once)\n"
 	@printf "  make setup-backend  Python venv + pip install only\n"
-	@printf "  make setup-frontend npm install only\n\n"
+	@printf "  make setup-frontend npm install only\n"
+	@printf "  make portable       Complete portable setup: Ollama + models + app\n\n"
 	@printf "\033[36mRun\033[0m\n"
 	@printf "  make run            Start backend + frontend (auto port, Ctrl+C to stop)\n"
 	@printf "  make run-backend    Start FastAPI backend only\n"
@@ -77,6 +78,9 @@ setup-frontend:
 	@printf "\033[1m[frontend]\033[0m Installing packages...\n"
 	@cd $(FRONTEND_DIR) && npm install --silent
 	@printf "\033[32m[frontend]\033[0m Done\n"
+
+portable:
+	@bash scripts/setup-portable.sh
 
 # ─── Run ──────────────────────────────────────────────────────────────────────
 

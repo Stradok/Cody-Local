@@ -1,0 +1,29 @@
+# Recommended Small Models for Cody-Local
+# Optimized for RAG + Coding with minimal hardware requirements
+
+# PRIMARY MODEL (Recommended)
+# Qwen2.5-Coder 1.5B - Best balance for coding + RAG
+# Size: 900MB | RAM: 2-3GB | Speed: Fast | Quality: Excellent for code
+qwen2.5-coder:1.5b
+
+# ALTERNATIVES (Choose one based on your needs)
+
+# For Ultra-Tiny (< 1GB total, runs on 1GB RAM)
+smollm2:360m          # 252MB | Very fast | Good for basic tasks
+
+# For Better General Performance (still small)
+llama3.2:1b           # 635MB | Fast | Good all-rounder
+qwen2.5:1.5b          # 900MB | Fast | Better reasoning
+
+# For Better Code Quality (if you have 3GB+ RAM)
+qwen2.5-coder:7b      # 4.5GB | Recommended for coding tasks | Best quality
+
+# EMBEDDING MODEL (For RAG Library)
+# Used automatically for document indexing, runs in background
+nomic-embed-text      # 274MB | Fast embeddings | Good quality
+
+# MODEL SELECTION GUIDE
+# If you have < 2GB RAM:    Use smollm2:360m or llama3.2:1b
+# If you have 2-4GB RAM:    Use qwen2.5-coder:1.5b (recommended)
+# If you have 4GB+ RAM:     Use qwen2.5-coder:7b for best quality
+# For RAG (Books/Library):  Always include nomic-embed-text
