@@ -15,18 +15,87 @@ echo ""
 echo "Location: $SCRIPT_DIR"
 echo ""
 
-# Check prerequisites
-echo "Checking prerequisites..."
+# Detect OS
+OS=$(uname -s)
+echo "Detected OS: $OS"
+echo ""
+
+# Check/install Python
+echo "Checking Python..."
 if ! command -v python3 &> /dev/null; then
-  echo "❌ Python 3 not found. Please install Python 3.11+ first."
-  exit 1
+  echo "⚠️  Python 3 not found. Installing..."
+
+  if [ "$OS" = "Darwin" ]; then
+    # macOS
+    if command -v brew &> /dev/null; then
+      echo "  Installing via Homebrew..."
+      brew install python@3.11
+    else
+      echo "❌ Homebrew not found. Please install from https://brew.sh"
+      echo "   Then run this script again."
+      exit 1
+    fi
+  elif [ "$OS" = "Linux" ]; then
+    # Linux
+    if command -v apt &> /dev/null; then
+      echo "  Installing via apt..."
+      sudo apt-get update -qq
+      sudo apt-get install -y python3 python3-venv python3-dev
+    elif command -v yum &> /dev/null; then
+      echo "  Installing via yum..."
+      sudo yum install -y python3 python3-devel
+    elif command -v pacman &> /dev/null; then
+      echo "  Installing via pacman..."
+      sudo pacman -S python
+    else
+      echo "❌ Could not find package manager. Please install Python 3.11+ manually."
+      exit 1
+    fi
+  else
+    echo "❌ Unsupported OS: $OS"
+    echo "   Please install Python 3.11+ manually from https://python.org"
+    exit 1
+  fi
 fi
 
+# Check/install Node.js
+echo "Checking Node.js..."
 if ! command -v node &> /dev/null; then
-  echo "❌ Node.js not found. Please install Node.js 18+ first."
-  exit 1
+  echo "⚠️  Node.js not found. Installing..."
+
+  if [ "$OS" = "Darwin" ]; then
+    # macOS
+    if command -v brew &> /dev/null; then
+      echo "  Installing via Homebrew..."
+      brew install node
+    else
+      echo "❌ Homebrew not found. Please install from https://brew.sh"
+      exit 1
+    fi
+  elif [ "$OS" = "Linux" ]; then
+    # Linux - use NodeSource repo for latest version
+    if command -v apt &> /dev/null; then
+      echo "  Installing via apt..."
+      sudo apt-get update -qq
+      sudo apt-get install -y nodejs npm
+    elif command -v yum &> /dev/null; then
+      echo "  Installing via yum..."
+      sudo yum install -y nodejs npm
+    elif command -v pacman &> /dev/null; then
+      echo "  Installing via pacman..."
+      sudo pacman -S nodejs npm
+    else
+      echo "❌ Could not find package manager. Please install Node.js 18+ manually."
+      exit 1
+    fi
+  else
+    echo "❌ Unsupported OS: $OS"
+    echo "   Please install Node.js 18+ manually from https://nodejs.org"
+    exit 1
+  fi
 fi
 
+echo ""
 PYTHON_VERSION=$(python3 --version 2>&1 | awk '{print $2}')
 NODE_VERSION=$(node --version)
 echo "✓ Python $PYTHON_VERSION"
@@ -72,18 +141,33 @@ echo ""
 echo "================================"
 echo "✅ Setup complete!"
 echo ""
-echo "📖 Next steps:"
+echo "All dependencies installed:"
+echo "  ✓ Python 3 (installed/verified)"
+echo "  ✓ Node.js (installed/verified)"
+echo "  ✓ Python packages (venv + requirements)"
+echo "  ✓ Node packages (npm dependencies)"
+echo "  ✓ Environment config (.env)"
 echo ""
-echo "1. To start Cody-Local:"
+echo "📖 NEXT STEPS (IMPORTANT):"
+echo ""
+echo "1. Make sure Ollama is installed and running:"
+echo "   # Download from https://ollama.ai"
+echo "   ollama serve"
+echo ""
+echo "2. Download AI models (one-time, takes 5-10 minutes):"
+echo "   # Download qwen2.5-coder:1.5b or gemma2:9b"
+echo "   ollama pull qwen2.5-coder:1.5b"
+echo ""
+echo "3. Start Cody-Local:"
 echo "   cd \"$SCRIPT_DIR\""
 echo "   make run"
 echo ""
-echo "2. Make sure Ollama is running:"
-echo "   ollama serve"
+echo "4. Open in browser:"
+echo "   http://localhost:3000"
 echo ""
-echo "3. (Optional) Edit .env for GitHub token:"
-echo "   nano $SCRIPT_DIR/backend/.env"
+echo "5. (Optional) Add GitHub token:"
+echo "   Edit: $SCRIPT_DIR/backend/.env"
 echo ""
-echo "4. Open http://localhost:3000 in your browser"
+echo "🚀 That's it! You're ready to code offline."
 echo ""
-echo "For offline mode, see PORTABLE.md for pre-downloading models."
+echo "For offline deployment on USB/external drive, see PORTABLE.md"
