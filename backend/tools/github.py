@@ -211,3 +211,71 @@ def commit_and_push(repo_path: str, message: str, branch: str = "main") -> str:
         if result.returncode != 0 and "nothing to commit" not in result.stderr and "Everything up-to-date" not in result.stdout:
             return f"Error running {' '.join(cmd)}: {result.stderr.strip() or result.stdout.strip()}"
     return f"Committed and pushed to {branch}"
+
+
+def git_status(repo_path: str) -> str:
+    """Get git status of the repository."""
+    if not os.path.isdir(os.path.join(repo_path, ".git")):
+        return f"Error: {repo_path} is not a git repository"
+    result = subprocess.run(["git", "status", "--porcelain"], capture_output=True, text=True, cwd=repo_path, timeout=10)
+    if result.returncode != 0:
+        return f"Error: {result.stderr.strip()}"
+    return result.stdout.strip() if result.stdout else "✓ Working tree is clean"
+
+
+def git_diff(repo_path: str, file_path: str = "") -> str:
+    """Get git diff of changes."""
+    if not os.path.isdir(os.path.join(repo_path, ".git")):
+        return f"Error: {repo_path} is not a git repository"
+    cmd = ["git", "diff"]
+    if file_path:
+        cmd.append(file_path)
+    result = subprocess.run(cmd, capture_output=True, text=True, cwd=repo_path, timeout=10)
+    if result.returncode != 0:
+        return f"Error: {result.stderr.strip()}"
+    return result.stdout if result.stdout else "✓ No uncommitted changes"
+
+
+def git_branch(repo_path: str, branch_name: str = "", create: bool = False) -> str:
+    """List branches or create/switch to a branch."""
+    if not os.path.isdir(os.path.join(repo_path, ".git")):
+        return f"Error: {repo_path} is not a git repository"
+
+    if not branch_name:
+        # List branches
+        result = subprocess.run(["git", "branch", "-a"], capture_output=True, text=True, cwd=repo_path, timeout=10)
+        return result.stdout.strip() if result.stdout else "No branches found"
+
+    if create:
+        # Create and checkout new branch
+        result = subprocess.run(["git", "checkout", "-b", branch_name], capture_output=True, text=True, cwd=repo_path, timeout=10)
+    else:
+        # Checkout existing branch
+        result = subprocess.run(["git", "checkout", branch_name], capture_output=True, text=True, cwd=repo_path, timeout=10)
+
+    if result.returncode != 0:
+        return f"Error: {result.stderr.strip()}"
+    return f"✓ Switched to branch '{branch_name}'" if not create else f"✓ Created and switched to branch '{branch_name}'"
+
+
+def git_pull(repo_path: str, branch: str = "main") -> str:
+    """Pull latest changes from remote."""
+    if not os.path.isdir(os.path.join(repo_path, ".git")):
+        return f"Error: {repo_path} is not a git repository"
+    result = subprocess.run(["git", "pull", "origin", branch], capture_output=True, text=True, cwd=repo_path, timeout=30)
+    if result.returncode != 0:
+        return f"Error: {result.stderr.strip()}"
+    return result.stdout.strip() if result.stdout else "✓ Already up to date"
+
+
+def git_log(repo_path: str, limit: int = 10) -> str:
+    """View recent commit history."""
+    if not os.path.isdir(os.path.join(repo_path, ".git")):
+        return f"Error: {repo_path} is not a git repository"
+    result = subprocess.run(
+        ["git", "log", f"--max-count={limit}", "--oneline"],
+        capture_output=True, text=True, cwd=repo_path, timeout=10
+    )
+    if result.returncode != 0:
+        return f"Error: {result.stderr.strip()}"
+    return result.stdout.strip() if result.stdout else "No commits found"

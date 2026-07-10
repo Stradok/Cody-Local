@@ -17,6 +17,11 @@ from tools import (
     create_pr,
     clone_repo,
     commit_and_push,
+    git_status,
+    git_diff,
+    git_branch,
+    git_pull,
+    git_log,
     list_repos,
     get_user,
 )
@@ -269,6 +274,81 @@ TOOL_DEFINITIONS = [
             "parameters": {"type": "object", "properties": {}},
         },
     },
+    {
+        "type": "function",
+        "function": {
+            "name": "git_status",
+            "description": "Get git status (uncommitted changes)",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "repo_path": {"type": "string", "description": "Path to git repository"},
+                },
+                "required": ["repo_path"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "git_diff",
+            "description": "Show git diff of uncommitted changes",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "repo_path": {"type": "string", "description": "Path to git repository"},
+                    "file_path": {"type": "string", "description": "Specific file to diff (optional)"},
+                },
+                "required": ["repo_path"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "git_branch",
+            "description": "List branches or create/switch to a branch",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "repo_path": {"type": "string", "description": "Path to git repository"},
+                    "branch_name": {"type": "string", "description": "Branch to create or switch to (leave empty to list)"},
+                    "create": {"type": "boolean", "description": "Create branch if it doesn't exist"},
+                },
+                "required": ["repo_path"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "git_pull",
+            "description": "Pull latest changes from remote",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "repo_path": {"type": "string", "description": "Path to git repository"},
+                    "branch": {"type": "string", "description": "Branch to pull from (default: main)"},
+                },
+                "required": ["repo_path"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "git_log",
+            "description": "View recent commit history",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "repo_path": {"type": "string", "description": "Path to git repository"},
+                    "limit": {"type": "integer", "description": "Number of commits to show (default: 10)"},
+                },
+                "required": ["repo_path"],
+            },
+        },
+    },
 ]
 
 
@@ -298,6 +378,11 @@ async def execute_tool(tool_name: str, args: dict, workspace: str = ".") -> str:
         "commit_and_push": lambda: commit_and_push(
             args["repo_path"], args["message"], args.get("branch", "main"),
         ),
+        "git_status": lambda: git_status(args["repo_path"]),
+        "git_diff": lambda: git_diff(args["repo_path"], args.get("file_path", "")),
+        "git_branch": lambda: git_branch(args["repo_path"], args.get("branch_name", ""), args.get("create", False)),
+        "git_pull": lambda: git_pull(args["repo_path"], args.get("branch", "main")),
+        "git_log": lambda: git_log(args["repo_path"], args.get("limit", 10)),
         "list_repos": lambda: list_repos(args.get("per_page", 30)),
         "get_user": lambda: get_user(),
     }
