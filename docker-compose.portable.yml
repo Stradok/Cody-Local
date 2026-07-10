@@ -1,0 +1,54 @@
+version: '3.8'
+
+services:
+  ollama:
+    image: ollama/ollama:latest
+    container_name: cody-ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_models:/root/.ollama
+    environment:
+      - OLLAMA_HOST=0.0.0.0:11434
+    networks:
+      - cody-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  cody-local:
+    build:
+      context: .
+      dockerfile: Dockerfile.portable
+    container_name: cody-local-app
+    ports:
+      - "3000:3000"
+      - "8000:8000"
+    environment:
+      - OLLAMA_BASE_URL=http://ollama:11434
+      - NODE_ENV=production
+    depends_on:
+      ollama:
+        condition: service_healthy
+    volumes:
+      - ./Books:/app/Books
+      - cody_cache:/root/.cody-local
+    networks:
+      - cody-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+volumes:
+  ollama_models:
+    driver: local
+  cody_cache:
+    driver: local
+
+networks:
+  cody-network:
+    driver: bridge

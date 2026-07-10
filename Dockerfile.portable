@@ -1,0 +1,44 @@
+FROM node:18-slim AS frontend-builder
+
+WORKDIR /app/frontend
+COPY frontend/package*.json ./
+RUN npm install --silent --no-audit
+COPY frontend/ .
+RUN npm run build
+
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    git \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy backend
+COPY backend /app/backend
+WORKDIR /app/backend
+
+# Setup Python environment
+RUN python -m venv venv
+RUN ./venv/bin/pip install --no-cache-dir -r requirements.txt
+
+# Copy built frontend
+COPY --from=frontend-builder /app/frontend/out /app/frontend/out
+COPY --from=frontend-builder /app/frontend/public /app/frontend/public
+COPY --from=frontend-builder /app/frontend/.next /app/frontend/.next
+
+# Create .env if not exists
+RUN echo "OLLAMA_BASE_URL=http://ollama:11434\nGITHUB_TOKEN=\nALLOWED_COMMANDS=python,python3,node,npm,npx,git,ls,cat,echo,mkdir,cp,mv\nMAX_TOOL_CALLS=20" > /app/backend/.env.docker
+
+# Expose ports
+EXPOSE 8000 3000
+
+# Health check
+HEALTHCHECK --interval=10s --timeout=5s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:8000/api/health || exit 1
+
+# Start backend
+CMD ["/bin/bash", "-c", "cd /app/backend && ./venv/bin/uvicorn main:app --host 0.0.0.0 --port 8000"]

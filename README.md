@@ -96,6 +96,32 @@ Open the frontend URL in your browser and select a model to start chatting.
 
 ---
 
+## Portable & Offline Setup
+
+For **external drives, USB sticks, or offline environments** (villages, remote areas, no internet):
+
+```bash
+# 1. Run portable setup (instead of make setup)
+bash portable-setup.sh
+
+# 2. Works from any location — external drive, local machine, etc.
+make run
+```
+
+**For complete offline mode** (no internet on destination machine):
+- See **[PORTABLE.md](./PORTABLE.md)** for detailed offline deployment guide
+- Pre-download AI models on a machine with internet
+- Transfer everything via external drive
+- Alternative: Use Docker (`docker-compose -f docker-compose.portable.yml up`)
+
+**Use cases:**
+- 🚗 Traveling with limited connectivity
+- 📍 Villages and rural communities with no internet
+- 🏢 Corporate air-gapped networks
+- 🎓 Workshops and training in offline environments
+
+---
+
 ## Configuration
 
 Copy the example environment file and edit as needed:
